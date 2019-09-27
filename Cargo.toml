@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "binpack",
+    "binpack-macros"
+]
