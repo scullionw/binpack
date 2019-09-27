@@ -2,13 +2,42 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput};
 
 #[proc_macro_derive(Bundle, attributes(folder))]
 pub fn bundle(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
 
     let name = &input.ident;
+
+    let mut folder = None;
+    for attr in input.attrs.iter() {
+        match attr.parse_meta().unwrap() {
+            syn::Meta::NameValue(syn::MetaNameValue {
+                ref path, ref lit, ..
+            }) if path.get_ident().unwrap() == &syn::parse_str::<syn::Ident>("folder").unwrap() => {
+                if let syn::Lit::Str(lit) = lit {
+                    folder = Some(lit.value());
+                } else {
+                    return syn::Error::new_spanned(
+                        &attr,
+                        "folder path provided was not a string literal!",
+                    )
+                    .to_compile_error()
+                    .into();
+                }
+            }
+            _ => {
+                return syn::Error::new_spanned(
+                    &attr,
+                    r#"Bad path! should be similar to #[folder = "dist/"]"#,
+                )
+                .to_compile_error()
+                .into()
+            }
+        }
+    }
+
+    let folder = folder.expect(r#"No path provided, should be similar to #[folder = "dist/"]"#);
 
     let window_mode = if cfg!(feature = "nowindow") {
         quote! {
@@ -22,7 +51,7 @@ pub fn bundle(input: TokenStream) -> TokenStream {
     let expanded = quote! {
 
         #[derive(rust_embed::RustEmbed)]
-        #[folder = "dist/"]
+        #[folder = #folder]
         struct __Asset;
 
 
