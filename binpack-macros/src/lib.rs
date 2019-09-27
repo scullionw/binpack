@@ -10,29 +10,24 @@ pub fn bundle(input: TokenStream) -> TokenStream {
     let name = &input.ident;
 
     let mut folder = None;
-    for attr in input.attrs.iter() {
-        match attr.parse_meta().unwrap() {
-            syn::Meta::NameValue(syn::MetaNameValue {
-                ref path, ref lit, ..
-            }) if path.get_ident().unwrap() == &syn::parse_str::<syn::Ident>("folder").unwrap() => {
-                if let syn::Lit::Str(lit) = lit {
+    for attr in input.attrs {
+        if let Ok(syn::Meta::NameValue(meta_name_value)) = attr.parse_meta() {
+            let syn::MetaNameValue { path, lit, .. } = meta_name_value;
+            let is_folder_attr = path.get_ident().unwrap().to_string() == "folder";
+            if let syn::Lit::Str(lit) = lit {
+                if is_folder_attr {
                     folder = Some(lit.value());
                 } else {
-                    return syn::Error::new_spanned(
-                        &attr,
-                        "folder path provided was not a string literal!",
-                    )
+                    let msg = r#"Bad path! should be similar to #[folder = "dist/"]"#;
+                    return syn::Error::new_spanned(&attr, msg)
+                        .to_compile_error()
+                        .into();
+                }
+            } else {
+                let msg = "folder path provided was not a string literal!";
+                return syn::Error::new_spanned(&attr, msg)
                     .to_compile_error()
                     .into();
-                }
-            }
-            _ => {
-                return syn::Error::new_spanned(
-                    &attr,
-                    r#"Bad path! should be similar to #[folder = "dist/"]"#,
-                )
-                .to_compile_error()
-                .into()
             }
         }
     }
@@ -121,9 +116,6 @@ pub fn bundle(input: TokenStream) -> TokenStream {
             let mut child = cmd.spawn().expect("Could not spawn command");
             child.wait().expect("command wasn't running");
         }
-
-
-
 
     };
 
